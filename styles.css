@@ -264,3 +264,20 @@ dialog label input, dialog label select, dialog label textarea { margin-top: 4px
 .input-with-btn input { margin-top: 0; flex: 1; min-width: 0; }
 a.btn { text-decoration: none; display: inline-flex; align-items: center; }
 .gift-link { font-size: 0.75rem; max-width: 110px; overflow: hidden; text-overflow: ellipsis; color: var(--accent); }
+
+/* Editing presents */
+.due-gifts { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
+.gift-chip {
+  font: inherit;
+  font-size: 0.85rem;
+  color: inherit;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 2px 10px;
+  cursor: pointer;
+  text-align: left;
+  overflow-wrap: anywhere;
+}
+.gift-chip:hover { border-color: var(--muted); }
+.gift-chip-edit { font-size: 0.7rem; opacity: 0.7; }

@@ -195,9 +195,11 @@
     const past = occ.days < 0;
     const budget = budgetFor(occ.person, occ.year);
     const bought = list.filter((g) => g.status === 'bought');
+    // Each present is a button that opens it for editing.
     const what = list.length
-      ? list.map((g) => `${GIFT_STATUS[g.status].icon} ${g.what}`).join(', ')
-      : 'No present yet';
+      ? el('span', { class: 'due-gifts' }, list.map((g) => el('button', { type: 'button', class: 'gift-chip', title: `Edit ${g.what}`, onclick: () => openGiftDialog(g) },
+          `${GIFT_STATUS[g.status].icon} ${g.what}${g.cost ? ` · ${moneyText(g.cost)}` : ''} `, el('span', { class: 'gift-chip-edit', 'aria-hidden': 'true' }, '✏️'))))
+      : el('span', { class: 'due-what' }, 'No present yet');
     const label = done ? 'All sorted' : state === 'sent' ? 'Card not sent' : past && state === 'none' ? 'Nothing recorded' : STATE_TEXT[state];
     return el('li', { class: `due-row ${done || past ? 'done' : urgent ? 'urgent' : ''}` },
       el('div', { class: 'due-info' },
@@ -205,7 +207,7 @@
         // Christmas has its own tab with the date at the top, so its rows don't repeat it.
         occ.occasion === 'birthday' ? el('span', { class: 'muted due-when' }, whenText(occ)) : null,
         budget ? el('span', { class: 'muted due-when' }, `Budget ${moneyText(budget)}${spent(list) ? ` · spent ${moneyText(spent(list))}` : ''}`) : null,
-        el('span', { class: 'due-what' }, what)),
+        what),
       el('span', { class: `badge ${done ? 'ok' : past ? '' : urgent || state === 'none' ? 'bad' : 'warn'}` }, label),
       el('div', { class: 'due-actions' },
         // More presents can be added any time until everything's sent.
@@ -307,7 +309,8 @@
         gift.status = NEXT_STATUS[gift.status] || 'bought';
         save();
         render();
-      } }, `${status.icon} ${status.label}`));
+      } }, `${status.icon} ${status.label}`),
+      el('button', { type: 'button', class: 'btn btn-icon', title: `Edit ${gift.what}`, 'aria-label': `Edit ${gift.what}`, onclick: () => openGiftDialog(gift) }, '✏️'));
   }
 
   function personCard(person) {
