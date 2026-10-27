@@ -258,3 +258,9 @@ dialog label input, dialog label select, dialog label textarea { margin-top: 4px
 .year-bar { display: flex; align-items: center; gap: 6px; margin-top: 14px; }
 .year-bar .year-label { font-size: 1.15rem; }
 .year-bar #year-today { margin-left: 6px; }
+
+/* Product links */
+.input-with-btn { display: flex; gap: 6px; margin-top: 4px; }
+.input-with-btn input { margin-top: 0; flex: 1; min-width: 0; }
+a.btn { text-decoration: none; display: inline-flex; align-items: center; }
+.gift-link { font-size: 0.75rem; max-width: 110px; overflow: hidden; text-overflow: ellipsis; color: var(--accent); }

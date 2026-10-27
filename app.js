@@ -299,6 +299,9 @@
       el('button', { type: 'button', class: 'gift-main', onclick: () => openGiftDialog(gift) },
         el('span', { class: 'gift-what' }, `${OCCASIONS[gift.occasion].icon} ${gift.what}`),
         gift.notes ? el('span', { class: 'muted gift-notes' }, gift.notes) : null),
+      gift.link && parseUrl(gift.link)
+        ? el('a', { class: 'btn btn-icon gift-link', href: gift.link, target: '_blank', rel: 'noopener', title: `Open on ${shopName(gift.link)}` }, `🔗 ${shopName(gift.link)}`)
+        : null,
       el('span', { class: 'gift-cost' }, gift.cost ? moneyText(gift.cost) : ''),
       el('button', { type: 'button', class: `badge gift-status ${gift.status}`, title: 'Tap to change', onclick: () => {
         gift.status = NEXT_STATUS[gift.status] || 'bought';
@@ -476,6 +479,59 @@
     personDialog.close();
   });
 
+  // ---------- Product links ----------
+
+  function firstUrl(text) {
+    const match = (text || '').match(/https?:\/\/[^\s<>"']+/);
+    return match ? match[0] : '';
+  }
+
+  function parseUrl(text) {
+    try {
+      const url = new URL(text.trim());
+      return /^https?:$/.test(url.protocol) ? url : null;
+    } catch (e) { return null; }
+  }
+
+  // "www.johnlewis.com" -> "Johnlewis", "amazon.co.uk" -> "Amazon".
+  function shopName(link) {
+    const url = parseUrl(link || '');
+    if (!url) return '';
+    const parts = url.hostname.replace(/^(www|m|shop)\./, '').split('.');
+    const main = parts.length > 2 && parts[parts.length - 2].length <= 3 ? parts[parts.length - 3] : parts[parts.length - 2] || parts[0];
+    return main.charAt(0).toUpperCase() + main.slice(1);
+  }
+
+  // Shops can't be read from here, so guess the product's name from the words in the link,
+  // e.g. amazon.co.uk/Lego-Classic-Bricks/dp/B00NHQFA1I -> "Lego Classic Bricks".
+  function nameFromLink(link) {
+    const url = parseUrl(link || '');
+    if (!url) return '';
+    const words = (segment) => decodeURIComponent(segment)
+      .replace(/\.(html?|aspx|php)$/i, '')
+      .split(/[-_+\s]+/)
+      .filter((w) => /[a-z]/i.test(w) && !/\d{3,}/.test(w) && !/^[A-Z0-9]{8,}$/.test(w));
+    let best = [];
+    for (const segment of url.pathname.split('/')) {
+      try {
+        const w = words(segment);
+        if (w.length > best.length) best = w;
+      } catch (e) { /* not decodable */ }
+    }
+    if (best.length < 2) return '';
+    const name = best.slice(0, 8).join(' ');
+    return name.charAt(0).toUpperCase() + name.slice(1);
+  }
+
+  // A shared page's title is usually the product name with the shop on the end:
+  // "Yankee Candle : Amazon.co.uk: Home", "Cashmere Scarf | John Lewis", "Mug - Etsy UK".
+  function productTitle(title) {
+    let t = title.split(/\s+[|:]\s+/)[0].trim();
+    const dash = Math.max(t.lastIndexOf(' - '), t.lastIndexOf(' – '));
+    if (dash > 0 && t.length - dash <= 25) t = t.slice(0, dash).trim();
+    return t;
+  }
+
   // ---------- Present dialog ----------
 
   const giftDialog = $('#gift-dialog');
@@ -499,7 +555,28 @@
     return next ? [next.occasion, next.year] : ['christmas', today().getFullYear()];
   }
 
-  function openGiftDialog(gift, personId, occasion, year) {
+  let nameFromLinkUsed = false;   // the name was filled in from the link, so a new link can replace it
+
+  function showLinkButton() {
+    const url = parseUrl($('#gift-link').value);
+    $('#gift-open').hidden = !url;
+    if (url) $('#gift-open').href = url.href;
+  }
+
+  function setGiftLink(text) {
+    const link = firstUrl(text) || text.trim();
+    $('#gift-link').value = link;
+    if (!$('#gift-what').value.trim() || nameFromLinkUsed) {
+      const name = nameFromLink(link);
+      if (name) {
+        $('#gift-what').value = name;
+        nameFromLinkUsed = true;
+      }
+    }
+    showLinkButton();
+  }
+
+  function openGiftDialog(gift, personId, occasion, year, shared) {
     if (!data.people.length) {
       alert('Add a person first.');
       return;
@@ -513,16 +590,37 @@
     $('#gift-occasion').value = gift?.occasion ?? occasion ?? defOcc;
     $('#gift-year').value = gift?.year ?? year ?? defYear;
     $('#gift-what').value = gift?.what ?? '';
+    $('#gift-link').value = gift?.link ?? '';
+    nameFromLinkUsed = false;
+    if (shared) {
+      setGiftLink(shared.link);
+      const title = productTitle(shared.title || '');
+      if (title && !parseUrl(title)) { $('#gift-what').value = title; nameFromLinkUsed = false; }
+    }
+    showLinkButton();
     $('#gift-cost').value = gift?.cost || '';
     $('#gift-status').value = gift?.status ?? 'idea';
     $('#gift-notes').value = gift?.notes ?? '';
     $('#gift-delete').hidden = !gift;
     showGiftHistory();
     giftDialog.showModal();
-    $('#gift-what').focus();
+    $(shared ? '#gift-cost' : '#gift-what').focus();
   }
 
   $('#gift-person').addEventListener('change', showGiftHistory);
+  $('#gift-what').addEventListener('input', () => { nameFromLinkUsed = false; });
+  $('#gift-link').addEventListener('change', () => setGiftLink($('#gift-link').value));
+  $('#gift-link').addEventListener('paste', () => setTimeout(() => setGiftLink($('#gift-link').value)));
+  $('#gift-paste').addEventListener('click', async () => {
+    try {
+      const text = await navigator.clipboard.readText();
+      if (firstUrl(text)) setGiftLink(text);
+      else alert('There’s no link on your clipboard. Copy the product’s link from the shop first.');
+    } catch (e) {
+      $('#gift-link').focus();
+      alert('Your phone didn’t allow pasting from here. Press and hold in the Link box and choose Paste.');
+    }
+  });
 
   $('#gift-form').addEventListener('submit', () => {
     const cost = parseFloat($('#gift-cost').value);
@@ -531,6 +629,7 @@
       occasion: $('#gift-occasion').value,
       year: parseInt($('#gift-year').value, 10) || today().getFullYear(),
       what: $('#gift-what').value.trim(),
+      link: parseUrl($('#gift-link').value) ? $('#gift-link').value.trim() : '',
       cost: cost > 0 ? Math.round(cost * 100) / 100 : 0,
       status: $('#gift-status').value,
       notes: $('#gift-notes').value.trim(),
@@ -618,6 +717,21 @@
   // ---------- Start ----------
 
   render();
+
+  // Shared from a shop's app or website (Android: Share → Presents): add it as a present.
+  (() => {
+    const params = new URLSearchParams(location.search);
+    const link = parseUrl(params.get('url') || '') ? params.get('url') : firstUrl(params.get('text')) || firstUrl(params.get('title'));
+    if (!link) return;
+    history.replaceState(null, '', location.pathname);
+    if (!data.people.length) {
+      alert('Add the people you buy for first, then share the product again.');
+      showTab('people');
+      return;
+    }
+    const text = (params.get('text') || '').replace(link, '').trim();
+    openGiftDialog(null, null, null, null, { link, title: params.get('title') || text });
+  })();
   // Redraw after midnight or when coming back to the app, so "in N days" stays right.
   document.addEventListener('visibilitychange', () => { if (!document.hidden) render(); });
 

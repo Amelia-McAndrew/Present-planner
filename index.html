@@ -12,7 +12,7 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" type="image/png" href="icons/favicon.png">
   <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
-  <link rel="stylesheet" href="styles.css?v=4">
+  <link rel="stylesheet" href="styles.css?v=5">
 </head>
 <body>
   <header class="site-header">
@@ -170,6 +170,13 @@
           <input type="number" id="gift-year" min="1900" max="2100" inputmode="numeric" required>
         </label>
       </div>
+      <label>Link to the product <span class="muted">(optional)</span>
+        <span class="input-with-btn">
+          <input type="url" id="gift-link" inputmode="url" placeholder="Paste a link from any shop">
+          <button type="button" class="btn" id="gift-paste">Paste</button>
+          <a class="btn" id="gift-open" target="_blank" rel="noopener" hidden>Open</a>
+        </span>
+      </label>
       <label>Present
         <input type="text" id="gift-what" required placeholder="e.g. Book, voucher, socks">
       </label>
@@ -186,7 +193,7 @@
         </label>
       </div>
       <label>Notes
-        <input type="text" id="gift-notes" placeholder="Optional – shop, link, tracking number">
+        <input type="text" id="gift-notes" placeholder="Optional – size, colour, tracking number">
       </label>
       <p id="gift-history" class="muted field-hint" hidden></p>
       <div class="dialog-actions">
@@ -198,6 +205,6 @@
     </form>
   </dialog>
 
-  <script src="app.js?v=4"></script>
+  <script src="app.js?v=5"></script>
 </body>
 </html>
