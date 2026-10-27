@@ -242,3 +242,15 @@ dialog label input, dialog label select, dialog label textarea { margin-top: 4px
 .due-actions { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 .card-toggle { font: inherit; font-size: 0.8rem; cursor: pointer; background: var(--surface); }
 .card-toggle.yes { color: var(--ok); border-color: currentColor; }
+
+/* Christmas */
+.sub-head { margin: 4px 0 0; font-size: 0.95rem; }
+.xmas-summary { font-weight: 600; }
+.tab .count-pill { margin-left: 2px; }
+@media (max-width: 460px) {
+  .tab { padding: 8px 5px; font-size: 0.88rem; flex: 1 1 auto; }
+  .tabs { gap: 0; }
+  .tab-icon { display: none; }
+  .tab .count-pill { padding: 1px 6px; }
+}
+@media (max-width: 370px) { .tab { font-size: 0.82rem; padding: 8px 4px; } }

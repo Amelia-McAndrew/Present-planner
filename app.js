@@ -11,8 +11,8 @@
   const STATE_TEXT = { none: 'Nothing yet', idea: 'Only ideas', bought: 'Not sent yet', sent: 'Sent' };
   const CARD_TEXT = { yes: '✉️ Card: Yes', no: '✉️ Card: No' };
   const MONTHS = Array.from({ length: 12 }, (_, i) => new Date(2000, i, 1).toLocaleDateString(undefined, { month: 'long' }));
-  const DUE_DAYS = { birthday: 30, christmas: 60 };   // how far ahead "To sort" looks
-  const LATER_DAYS = 183;
+  const DUE_DAYS = { birthday: 30, christmas: 60 };   // how soon something counts as needing sorting
+  const YEAR_DAYS = 366;
 
   // ---------- State ----------
 
@@ -101,10 +101,10 @@
   }
 
   // Occasions coming up, soonest first. `limit` is a number of days, or one per occasion.
-  function upcoming(limit, after = -1) {
+  function upcoming(limit, after = -1, only = null) {
     const list = [];
     for (const person of data.people) {
-      for (const occasion of Object.keys(OCCASIONS)) {
+      for (const occasion of only ? [only] : Object.keys(OCCASIONS)) {
         const next = nextOccasion(person, occasion);
         const max = typeof limit === 'number' ? limit : limit[occasion];
         const min = typeof after === 'number' ? after : after[occasion];
@@ -179,7 +179,9 @@
     return el('li', { class: `due-row ${done ? 'done' : urgent ? 'urgent' : ''}` },
       el('div', { class: 'due-info' },
         el('span', { class: 'due-name' }, `${OCCASIONS[occ.occasion].icon} ${occ.person.name}`),
-        el('span', { class: 'muted due-when' }, `${OCCASIONS[occ.occasion].label} – ${whenText(occ)}`),
+        // Christmas has its own tab with the date at the top, so its rows don't repeat it.
+        occ.occasion === 'birthday' ? el('span', { class: 'muted due-when' }, whenText(occ)) : null,
+        occ.person.budget ? el('span', { class: 'muted due-when' }, `Budget ${moneyText(occ.person.budget)}`) : null,
         el('span', { class: 'due-what' }, what)),
       el('span', { class: `badge ${done ? 'ok' : urgent || state === 'none' ? 'bad' : 'warn'}` }, label),
       el('div', { class: 'due-actions' },
@@ -197,22 +199,55 @@
         wantsCard(occ.person) ? cardButton(occ.person.id, occ.occasion, occ.year) : null));
   }
 
-  function renderUpcoming() {
-    const due = upcoming(DUE_DAYS).filter((occ) => !occasionDone(occ));
-    $('#due').replaceChildren(...due.map(dueRow));
-    $('#due-empty').hidden = due.length > 0;
-    $('#due-empty').textContent = data.people.length
-      ? 'Nothing to sort out soon. 🎉'
-      : 'Add the people you buy presents for in People, and they’ll show up here before their birthdays and Christmas.';
-    $('#due-count').textContent = due.length ? String(due.length) : '';
-    $('#due-count').hidden = !due.length;
+  function setCount(id, n) {
+    $(id).textContent = n ? String(n) : '';
+    $(id).hidden = !n;
+  }
 
-    // Further ahead, plus anything soon that's already sent.
-    const soonSent = upcoming(DUE_DAYS).filter(occasionDone);
-    const later = [...soonSent, ...upcoming(LATER_DAYS, DUE_DAYS)].sort((a, b) => a.days - b.days);
-    $('#later').replaceChildren(...later.map(dueRow));
-    $('#later-empty').hidden = later.length > 0;
-    $('#later-empty').textContent = data.people.length ? 'Nothing else in the next 6 months.' : '';
+  // ---------- Birthdays ----------
+
+  function renderBirthdays() {
+    const soon = upcoming(DUE_DAYS.birthday, -1, 'birthday');
+    const due = soon.filter((occ) => !occasionDone(occ));
+    $('#bday-due').replaceChildren(...due.map(dueRow));
+    $('#bday-due-empty').hidden = due.length > 0;
+    $('#bday-due-empty').textContent = data.people.some((p) => p.bday)
+      ? 'No birthdays to sort out in the next 30 days. 🎉'
+      : 'Add the people you buy presents for in People, with their birthdays, and they’ll show up here a month before.';
+    setCount('#birthdays-count', due.length);
+
+    // Every other birthday in the next year, plus any soon ones that are already sorted.
+    const later = [...soon.filter(occasionDone), ...upcoming(YEAR_DAYS, DUE_DAYS.birthday, 'birthday')]
+      .sort((a, b) => a.days - b.days);
+    $('#bday-later').replaceChildren(...later.map(dueRow));
+    $('#bday-later-empty').hidden = later.length > 0;
+    $('#bday-later-empty').textContent = data.people.some((p) => p.bday) ? 'No other birthdays in the next 12 months.' : '';
+  }
+
+  // ---------- Christmas ----------
+
+  function renderChristmas() {
+    const all = upcoming(YEAR_DAYS, -1, 'christmas').sort((a, b) => a.person.name.localeCompare(b.person.name));
+    const date = all[0]?.date ?? nextOccasion({ christmas: true }, 'christmas').date;
+    const days = Math.round((date - today()) / 86400000);
+    $('#xmas-title').textContent = `Christmas ${date.getFullYear()}`;
+    $('#xmas-when').textContent = days === 0 ? 'today! 🎄' : days === 1 ? 'tomorrow' : `in ${days} days`;
+
+    const todo = all.filter((occ) => !occasionDone(occ));
+    const done = all.filter(occasionDone);
+    $('#xmas-todo').replaceChildren(...todo.map(dueRow));
+    $('#xmas-done').replaceChildren(...done.map(dueRow));
+    $('#xmas-todo-head').hidden = !todo.length;
+    $('#xmas-done-head').hidden = !done.length;
+
+    const yearGifts = data.gifts.filter((g) => g.occasion === 'christmas' && g.year === date.getFullYear());
+    const budget = all.reduce((sum, occ) => sum + (occ.person.budget || 0), 0);
+    $('#xmas-summary').hidden = !all.length;
+    $('#xmas-summary').textContent = `${done.length} of ${all.length} sorted · ${moneyText(spent(yearGifts))} spent${budget ? ` of ${moneyText(budget)} budget` : ''}`;
+    $('#xmas-empty').hidden = all.length > 0;
+    $('#xmas-empty').textContent = 'No one to buy for yet. Add people in People and tick “I buy them a Christmas present”.';
+    // Only nag about Christmas once it's getting close.
+    setCount('#christmas-count', days <= DUE_DAYS.christmas ? todo.length : 0);
   }
 
   // ---------- People ----------
@@ -299,7 +334,8 @@
   }
 
   function render() {
-    renderUpcoming();
+    renderBirthdays();
+    renderChristmas();
     renderPeople();
     renderSpending();
   }
@@ -313,7 +349,7 @@
 
   // ---------- Tabs ----------
 
-  const TABS = ['upcoming', 'people', 'spending'];
+  const TABS = ['birthdays', 'christmas', 'people', 'spending'];
 
   function showTab(name) {
     for (const tab of TABS) {

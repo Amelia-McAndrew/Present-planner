@@ -12,7 +12,7 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" type="image/png" href="icons/favicon.png">
   <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
-  <link rel="stylesheet" href="styles.css?v=2">
+  <link rel="stylesheet" href="styles.css?v=3">
 </head>
 <body>
   <header class="site-header">
@@ -20,7 +20,8 @@
       <h1>🎁 Present Planner</h1>
       <p class="tagline">Birthdays, Christmas, and what you've spent on everyone.</p>
       <nav class="tabs" role="tablist" aria-label="Sections">
-        <button type="button" role="tab" class="tab" id="tab-upcoming" aria-controls="upcoming-view" aria-selected="true">Coming up</button>
+        <button type="button" role="tab" class="tab" id="tab-birthdays" aria-controls="birthdays-view" aria-selected="true"><span class="tab-icon">🎂 </span>Birthdays <span id="birthdays-count" class="count-pill" hidden></span></button>
+        <button type="button" role="tab" class="tab" id="tab-christmas" aria-controls="christmas-view" aria-selected="false"><span class="tab-icon">🎄 </span>Christmas <span id="christmas-count" class="count-pill" hidden></span></button>
         <button type="button" role="tab" class="tab" id="tab-people" aria-controls="people-view" aria-selected="false">People</button>
         <button type="button" role="tab" class="tab" id="tab-spending" aria-controls="spending-view" aria-selected="false">Spending</button>
       </nav>
@@ -28,23 +29,38 @@
   </header>
 
   <main class="wrap">
-    <div id="upcoming-view" role="tabpanel" aria-labelledby="tab-upcoming">
+    <div id="birthdays-view" role="tabpanel" aria-labelledby="tab-birthdays">
       <section class="panel widget">
         <div class="widget-head">
-          <h2>To sort <span id="due-count" class="count-pill" hidden></span></h2>
-          <span class="muted">birthdays in the next 30 days, Christmas in the next 60</span>
+          <h2>To sort</h2>
+          <span class="muted">next 30 days</span>
         </div>
-        <ul id="due" class="due-list"></ul>
-        <p id="due-empty" class="muted"></p>
+        <ul id="bday-due" class="due-list"></ul>
+        <p id="bday-due-empty" class="muted"></p>
       </section>
 
       <section class="panel widget">
         <div class="widget-head">
-          <h2>Further ahead</h2>
-          <span class="muted">next 6 months</span>
+          <h2>Coming up</h2>
+          <span class="muted">the next 12 months</span>
         </div>
-        <ul id="later" class="due-list"></ul>
-        <p id="later-empty" class="muted"></p>
+        <ul id="bday-later" class="due-list"></ul>
+        <p id="bday-later-empty" class="muted"></p>
+      </section>
+    </div>
+
+    <div id="christmas-view" role="tabpanel" aria-labelledby="tab-christmas" hidden>
+      <section class="panel widget">
+        <div class="widget-head">
+          <h2 id="xmas-title">Christmas</h2>
+          <span class="muted" id="xmas-when"></span>
+        </div>
+        <p id="xmas-summary" class="xmas-summary"></p>
+        <h3 class="sub-head" id="xmas-todo-head">Still to sort</h3>
+        <ul id="xmas-todo" class="due-list"></ul>
+        <h3 class="sub-head" id="xmas-done-head">Sorted</h3>
+        <ul id="xmas-done" class="due-list"></ul>
+        <p id="xmas-empty" class="muted"></p>
       </section>
     </div>
 
@@ -186,6 +202,6 @@
     </form>
   </dialog>
 
-  <script src="app.js?v=2"></script>
+  <script src="app.js?v=3"></script>
 </body>
 </html>
