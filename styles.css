@@ -237,3 +237,8 @@ dialog label input, dialog label select, dialog label textarea { margin-top: 4px
 .check-label input { width: auto; margin-top: 0; accent-color: var(--accent); }
 .dialog-actions { display: flex; gap: 8px; align-items: center; margin-top: 8px; }
 .spacer { flex: 1; }
+
+/* Cards */
+.due-actions { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.card-toggle { font: inherit; font-size: 0.8rem; cursor: pointer; background: var(--surface); }
+.card-toggle.yes { color: var(--ok); border-color: currentColor; }

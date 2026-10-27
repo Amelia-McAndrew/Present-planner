@@ -9,6 +9,7 @@
   const GIFT_STATUS = { idea: { icon: '💡', label: 'Idea' }, bought: { icon: '🛍️', label: 'Bought' }, sent: { icon: '✅', label: 'Sent' } };
   const NEXT_STATUS = { idea: 'bought', bought: 'sent', sent: 'idea' };
   const STATE_TEXT = { none: 'Nothing yet', idea: 'Only ideas', bought: 'Not sent yet', sent: 'Sent' };
+  const CARD_TEXT = { yes: '✉️ Card: Yes', no: '✉️ Card: No' };
   const MONTHS = Array.from({ length: 12 }, (_, i) => new Date(2000, i, 1).toLocaleDateString(undefined, { month: 'long' }));
   const DUE_DAYS = { birthday: 30, christmas: 60 };   // how far ahead "To sort" looks
   const LATER_DAYS = 183;
@@ -26,9 +27,15 @@
   function load() {
     try {
       const parsed = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null');
-      if (valid(parsed)) return parsed;
+      if (valid(parsed)) return withCards(parsed);
     } catch (e) { /* fall through to empty */ }
-    return { people: [], gifts: [] };
+    return { people: [], gifts: [], cards: {} };
+  }
+
+  // Cards sent, as { "personId|occasion|year": true }. Lists saved before cards existed have none.
+  function withCards(value) {
+    if (!value.cards || typeof value.cards !== 'object') value.cards = {};
+    return value;
   }
 
   function save() {
@@ -119,6 +126,32 @@
     return 'idea';
   }
 
+  const wantsCard = (person) => person.card !== false;
+  const cardKey = (personId, occasion, year) => `${personId}|${occasion}|${year}`;
+  const cardSent = (personId, occasion, year) => !!data.cards[cardKey(personId, occasion, year)];
+
+  function toggleCard(personId, occasion, year) {
+    const key = cardKey(personId, occasion, year);
+    if (data.cards[key]) delete data.cards[key];
+    else data.cards[key] = true;
+    save();
+    render();
+  }
+
+  function cardButton(personId, occasion, year, withIcon) {
+    const sent = cardSent(personId, occasion, year);
+    return el('button', { type: 'button', class: `badge card-toggle ${sent ? 'yes' : ''}`, 'aria-pressed': String(sent),
+      title: sent ? 'Card sent – tap to undo' : 'Tap when the card is sent',
+      onclick: () => toggleCard(personId, occasion, year) },
+    `${withIcon ? `${OCCASIONS[occasion].icon} ` : ''}${sent ? CARD_TEXT.yes : CARD_TEXT.no}`);
+  }
+
+  // Sorted when every present is sent and, if they get one, the card is too.
+  function occasionDone(occ) {
+    return occasionState(giftsFor(occ.person.id, occ.occasion, occ.year)) === 'sent'
+      && (!wantsCard(occ.person) || cardSent(occ.person.id, occ.occasion, occ.year));
+  }
+
   function whenText(occ) {
     const date = occ.date.toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' });
     const when = occ.days === 0 ? 'today' : occ.days === 1 ? 'tomorrow' : `in ${occ.days} days`;
@@ -136,30 +169,36 @@
   function dueRow(occ) {
     const list = giftsFor(occ.person.id, occ.occasion, occ.year);
     const state = occasionState(list);
-    const urgent = state !== 'sent' && occ.days <= 7;
+    const done = occasionDone(occ);
+    const urgent = !done && occ.days <= 7;
     const bought = list.filter((g) => g.status === 'bought');
     const what = list.length
       ? list.map((g) => `${GIFT_STATUS[g.status].icon} ${g.what}`).join(', ')
       : 'No present yet';
-    return el('li', { class: `due-row ${state === 'sent' ? 'done' : urgent ? 'urgent' : ''}` },
+    const label = done ? 'All sorted' : state === 'sent' ? 'Card not sent' : STATE_TEXT[state];
+    return el('li', { class: `due-row ${done ? 'done' : urgent ? 'urgent' : ''}` },
       el('div', { class: 'due-info' },
         el('span', { class: 'due-name' }, `${OCCASIONS[occ.occasion].icon} ${occ.person.name}`),
         el('span', { class: 'muted due-when' }, `${OCCASIONS[occ.occasion].label} – ${whenText(occ)}`),
         el('span', { class: 'due-what' }, what)),
-      el('span', { class: `badge ${state === 'sent' ? 'ok' : urgent || state === 'none' ? 'bad' : 'warn'}` }, STATE_TEXT[state]),
-      bought.length
-        ? el('button', { type: 'button', class: 'btn btn-small', onclick: () => {
-            bought.forEach((g) => { g.status = 'sent'; });
-            save();
-            render();
-          } }, 'Mark sent')
-        : state === 'sent'
+      el('span', { class: `badge ${done ? 'ok' : urgent || state === 'none' ? 'bad' : 'warn'}` }, label),
+      el('div', { class: 'due-actions' },
+        // More presents can be added any time until everything's sent.
+        state === 'sent'
           ? null
-          : el('button', { type: 'button', class: 'btn btn-small', onclick: () => openGiftDialog(null, occ.person.id, occ.occasion, occ.year) }, '+ Present'));
+          : el('button', { type: 'button', class: 'btn btn-small', onclick: () => openGiftDialog(null, occ.person.id, occ.occasion, occ.year) }, '+ Present'),
+        bought.length
+          ? el('button', { type: 'button', class: 'btn btn-small', onclick: () => {
+              bought.forEach((g) => { g.status = 'sent'; });
+              save();
+              render();
+            } }, 'Mark sent')
+          : null,
+        wantsCard(occ.person) ? cardButton(occ.person.id, occ.occasion, occ.year) : null));
   }
 
   function renderUpcoming() {
-    const due = upcoming(DUE_DAYS).filter((occ) => occasionState(giftsFor(occ.person.id, occ.occasion, occ.year)) !== 'sent');
+    const due = upcoming(DUE_DAYS).filter((occ) => !occasionDone(occ));
     $('#due').replaceChildren(...due.map(dueRow));
     $('#due-empty').hidden = due.length > 0;
     $('#due-empty').textContent = data.people.length
@@ -169,7 +208,7 @@
     $('#due-count').hidden = !due.length;
 
     // Further ahead, plus anything soon that's already sent.
-    const soonSent = upcoming(DUE_DAYS).filter((occ) => occasionState(giftsFor(occ.person.id, occ.occasion, occ.year)) === 'sent');
+    const soonSent = upcoming(DUE_DAYS).filter(occasionDone);
     const later = [...soonSent, ...upcoming(LATER_DAYS, DUE_DAYS)].sort((a, b) => a.days - b.days);
     $('#later').replaceChildren(...later.map(dueRow));
     $('#later-empty').hidden = later.length > 0;
@@ -203,6 +242,10 @@
       .sort((a, b) => a.occasion.localeCompare(b.occasion) || a.what.localeCompare(b.what));
     const meta = [birthdayText(person)];
     if (person.christmas === false) meta.push('No Christmas present');
+    if (!wantsCard(person)) meta.push('No card');
+    const cardOccasions = wantsCard(person)
+      ? Object.keys(OCCASIONS).filter((o) => (o === 'christmas' ? person.christmas !== false : !!person.bday))
+      : [];
     if (person.budget) meta.push(`Budget ${moneyText(person.budget)}`);
     const over = Object.keys(OCCASIONS).filter((occ) => person.budget && spent(list.filter((g) => g.occasion === occ)) > person.budget);
     const total = spent(list);
@@ -214,6 +257,9 @@
       el('p', { class: 'muted card-meta' }, meta.join(' · '),
         over.length ? el('span', { class: 'badge bad' }, `Over budget for ${over.map((o) => OCCASIONS[o].label).join(' and ')}`) : null),
       person.notes ? el('p', { class: 'muted card-meta card-notes' }, person.notes) : null,
+      cardOccasions.length
+        ? el('p', { class: 'card-meta' }, cardOccasions.map((o) => cardButton(person.id, o, peopleYear, true)))
+        : null,
       list.length
         ? el('ul', { class: 'gift-list' }, list.map(giftRow))
         : el('p', { class: 'card-empty' }, `Nothing for ${peopleYear} yet.`),
@@ -294,6 +340,7 @@
     $('#person-month').value = person?.bday ? String(person.bday.month) : '';
     $('#person-year').value = person?.bday?.year ?? '';
     $('#person-christmas').checked = person ? person.christmas !== false : true;
+    $('#person-card').checked = person ? wantsCard(person) : true;
     $('#person-budget').value = person?.budget ?? '';
     $('#person-notes').value = person?.notes ?? '';
     $('#person-delete').hidden = !person;
@@ -315,6 +362,7 @@
       name: $('#person-name').value.trim(),
       bday: day && month ? { day, month, ...(year > 1900 ? { year } : {}) } : null,
       christmas: $('#person-christmas').checked,
+      card: $('#person-card').checked,
       budget: budget > 0 ? budget : null,
       notes: $('#person-notes').value.trim(),
     };
@@ -334,6 +382,7 @@
     if (!confirm(count ? `Delete ${person.name} and the ${count} present${count === 1 ? '' : 's'} recorded for them?` : `Delete ${person.name}?`)) return;
     data.people = data.people.filter((p) => p.id !== id);
     data.gifts = data.gifts.filter((g) => g.personId !== id);
+    for (const key of Object.keys(data.cards)) if (key.startsWith(`${id}|`)) delete data.cards[key];
     save();
     render();
     personDialog.close();
@@ -470,7 +519,7 @@
       const parsed = JSON.parse(await file.text());
       if (!valid(parsed)) throw new Error('bad shape');
       if (!confirm('Replace your current people and presents with the imported ones?')) return;
-      data = parsed;
+      data = withCards(parsed);
       save();
       render();
     } catch (err) {

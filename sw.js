@@ -1,10 +1,10 @@
 // Caches the app so it opens without a connection. Bump CACHE when files change.
-const CACHE = 'presents-v1';
+const CACHE = 'presents-v2';
 const FILES = [
   './',
   'index.html',
-  'styles.css?v=1',
-  'app.js?v=1',
+  'styles.css?v=2',
+  'app.js?v=2',
   'manifest.webmanifest',
   'icons/icon-192.png',
   'icons/icon-512.png',
