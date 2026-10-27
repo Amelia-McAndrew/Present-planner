@@ -1,0 +1,188 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Present Planner</title>
+  <meta name="theme-color" content="#8a3b5c">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="Presents">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" type="image/png" href="icons/favicon.png">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <link rel="stylesheet" href="styles.css?v=1">
+</head>
+<body>
+  <header class="site-header">
+    <div class="wrap">
+      <h1>🎁 Present Planner</h1>
+      <p class="tagline">Birthdays, Christmas, and what you've spent on everyone.</p>
+      <nav class="tabs" role="tablist" aria-label="Sections">
+        <button type="button" role="tab" class="tab" id="tab-upcoming" aria-controls="upcoming-view" aria-selected="true">Coming up</button>
+        <button type="button" role="tab" class="tab" id="tab-people" aria-controls="people-view" aria-selected="false">People</button>
+        <button type="button" role="tab" class="tab" id="tab-spending" aria-controls="spending-view" aria-selected="false">Spending</button>
+      </nav>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <div id="upcoming-view" role="tabpanel" aria-labelledby="tab-upcoming">
+      <section class="panel widget">
+        <div class="widget-head">
+          <h2>To sort <span id="due-count" class="count-pill" hidden></span></h2>
+          <span class="muted">birthdays in the next 30 days, Christmas in the next 60</span>
+        </div>
+        <ul id="due" class="due-list"></ul>
+        <p id="due-empty" class="muted"></p>
+      </section>
+
+      <section class="panel widget">
+        <div class="widget-head">
+          <h2>Further ahead</h2>
+          <span class="muted">next 6 months</span>
+        </div>
+        <ul id="later" class="due-list"></ul>
+        <p id="later-empty" class="muted"></p>
+      </section>
+    </div>
+
+    <div id="people-view" role="tabpanel" aria-labelledby="tab-people" hidden>
+      <section class="toolbar">
+        <div class="toolbar-group">
+          <input type="search" id="search" placeholder="Search people…" aria-label="Search people">
+          <div class="year-nav">
+            <button type="button" class="btn btn-icon" id="people-year-prev" aria-label="Previous year">‹</button>
+            <span class="year-label" id="people-year"></span>
+            <button type="button" class="btn btn-icon" id="people-year-next" aria-label="Next year">›</button>
+          </div>
+        </div>
+        <div class="toolbar-group">
+          <button type="button" id="add-person-btn" class="btn btn-primary">+ Add person</button>
+        </div>
+      </section>
+      <section id="people" class="people"></section>
+      <p id="people-empty" class="muted center" hidden>No one here yet. Add the people you buy presents for, with their birthdays.</p>
+    </div>
+
+    <div id="spending-view" role="tabpanel" aria-labelledby="tab-spending" hidden>
+      <section class="panel widget">
+        <div class="widget-head">
+          <h2>Spending</h2>
+          <div class="year-nav">
+            <button type="button" class="btn btn-icon" id="spend-year-prev" aria-label="Previous year">‹</button>
+            <span class="year-label" id="spend-year"></span>
+            <button type="button" class="btn btn-icon" id="spend-year-next" aria-label="Next year">›</button>
+          </div>
+        </div>
+        <div class="stats">
+          <div class="stat"><span class="stat-value" id="spend-total">£0</span><span class="stat-label">Spent</span></div>
+          <div class="stat"><span class="stat-value" id="spend-xmas">£0</span><span class="stat-label">🎄 Christmas</span></div>
+          <div class="stat"><span class="stat-value" id="spend-bday">£0</span><span class="stat-label">🎂 Birthdays</span></div>
+          <div class="stat stat-low"><span class="stat-value" id="spend-ideas">£0</span><span class="stat-label">Ideas not bought yet</span></div>
+        </div>
+        <div class="table-wrap">
+          <table class="spend-table" id="spend-table"></table>
+        </div>
+      </section>
+    </div>
+
+    <section class="data-tools">
+      <button type="button" class="btn btn-small" id="calendar-btn">📅 Add birthdays to my calendar</button>
+      <button type="button" class="btn btn-small" id="export-btn">Export data</button>
+      <label class="btn btn-small import-label">Import data
+        <input type="file" id="import-file" accept="application/json,.json" hidden>
+      </label>
+      <span class="muted">Your list is saved on this device. Export a backup now and then.</span>
+    </section>
+  </main>
+
+  <!-- Person dialog -->
+  <dialog id="person-dialog">
+    <form id="person-form" method="dialog">
+      <h2 id="person-dialog-title">Add person</h2>
+      <input type="hidden" id="person-id">
+      <label>Name
+        <input type="text" id="person-name" required placeholder="e.g. Auntie Sue">
+      </label>
+      <p class="field-label">Birthday <span class="muted">(leave blank if you don't buy them a birthday present)</span></p>
+      <div class="row row-3">
+        <label>Day
+          <input type="number" id="person-day" min="1" max="31" inputmode="numeric" placeholder="14">
+        </label>
+        <label>Month
+          <select id="person-month"></select>
+        </label>
+        <label>Year <span class="muted">(optional)</span>
+          <input type="number" id="person-year" min="1900" max="2100" inputmode="numeric" placeholder="for age">
+        </label>
+      </div>
+      <label class="check-label">
+        <input type="checkbox" id="person-christmas" checked> I buy them a Christmas present
+      </label>
+      <label>Budget per present <span class="muted">(optional)</span>
+        <input type="number" id="person-budget" min="0" step="any" inputmode="decimal" placeholder="e.g. 25">
+      </label>
+      <label>Notes <span class="muted">(sizes, likes, address…)</span>
+        <textarea id="person-notes" rows="2" placeholder="Optional"></textarea>
+      </label>
+      <div class="dialog-actions">
+        <button type="button" class="btn btn-danger" id="person-delete">Delete</button>
+        <span class="spacer"></span>
+        <button type="button" class="btn" data-close>Cancel</button>
+        <button type="submit" class="btn btn-primary">Save</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Present dialog -->
+  <dialog id="gift-dialog">
+    <form id="gift-form" method="dialog">
+      <h2 id="gift-dialog-title">Add present</h2>
+      <input type="hidden" id="gift-id">
+      <label>For
+        <select id="gift-person" required></select>
+      </label>
+      <div class="row">
+        <label>Occasion
+          <select id="gift-occasion">
+            <option value="christmas">🎄 Christmas</option>
+            <option value="birthday">🎂 Birthday</option>
+          </select>
+        </label>
+        <label>Year
+          <input type="number" id="gift-year" min="1900" max="2100" inputmode="numeric" required>
+        </label>
+      </div>
+      <label>Present
+        <input type="text" id="gift-what" required placeholder="e.g. Book, voucher, socks">
+      </label>
+      <div class="row">
+        <label>Cost
+          <input type="number" id="gift-cost" min="0" step="any" inputmode="decimal" placeholder="0.00">
+        </label>
+        <label>Where it's at
+          <select id="gift-status">
+            <option value="idea">💡 Idea</option>
+            <option value="bought">🛍️ Bought</option>
+            <option value="sent">✅ Sent / given</option>
+          </select>
+        </label>
+      </div>
+      <label>Notes
+        <input type="text" id="gift-notes" placeholder="Optional – shop, link, tracking number">
+      </label>
+      <p id="gift-history" class="muted field-hint" hidden></p>
+      <div class="dialog-actions">
+        <button type="button" class="btn btn-danger" id="gift-delete">Delete</button>
+        <span class="spacer"></span>
+        <button type="button" class="btn" data-close>Cancel</button>
+        <button type="submit" class="btn btn-primary">Save</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script src="app.js?v=1"></script>
+</body>
+</html>

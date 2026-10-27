@@ -1,0 +1,30 @@
+# Present Planner
+
+A simple app for keeping track of the people you buy presents for, so you never forget a birthday or Christmas present.
+
+- **People** – add each person with their birthday (day and month, plus the year if you want to see their age), whether you buy them a Christmas present, an optional budget per present, and notes (sizes, likes, address).
+- **Presents** – record each present against Christmas or their birthday for a year: what it is, how much it cost, and where it's at (💡 idea, 🛍️ bought, ✅ sent). Tap the status on a present to move it on. When you add one, it shows what you've given that person before, so you don't give the same thing twice.
+- **Coming up** – opens first. **To sort** lists birthdays in the next 30 days and Christmas in the next 60 that aren't sent yet, marked *Nothing yet*, *Only ideas* or *Not sent yet* (red in the last week), with **+ Present** and **Mark sent** buttons. **Further ahead** shows the next 6 months.
+- **Spending** – for any year: total spent, Christmas, birthdays, ideas not bought yet, and a breakdown per person. Ideas only count as spent once they're bought. People's cards warn when a present goes over their budget.
+- **Calendar reminders** – **📅 Add birthdays to my calendar** downloads a calendar file with everyone's birthday repeating every year and a reminder a week before. Open it on your phone to add them to your calendar (download it again after adding new people).
+- **Backup** – everything is saved on the device. **Export data** saves a backup file and **Import data** restores it (for example on a new phone).
+
+## Running it
+
+There's no build step. Open `index.html` in a browser, or serve the folder:
+
+```sh
+python3 -m http.server 8000
+# then visit http://localhost:8000
+```
+
+## Installing it on your phone
+
+It's an installable web app: once installed it opens full screen from your home screen and works offline.
+
+1. Host it with GitHub Pages: in the repo go to **Settings → Pages**, choose **Deploy from a branch**, pick `main` and `/ (root)`, and save. After a minute you get a link like `https://<username>.github.io/present-planner/`.
+2. Open that link on your phone:
+   - **iPhone (Safari):** tap the Share button, then **Add to Home Screen**.
+   - **Android (Chrome):** tap the ⋮ menu, then **Install app** (or **Add to Home screen**).
+
+Deleting the app from your home screen also deletes its saved data, so export a backup first.
