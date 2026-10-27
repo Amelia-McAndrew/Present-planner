@@ -12,7 +12,7 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" type="image/png" href="icons/favicon.png">
   <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
-  <link rel="stylesheet" href="styles.css?v=3">
+  <link rel="stylesheet" href="styles.css?v=4">
 </head>
 <body>
   <header class="site-header">
@@ -29,8 +29,15 @@
   </header>
 
   <main class="wrap">
+    <div class="year-bar" role="group" aria-label="Year">
+      <button type="button" class="btn btn-icon" id="year-prev" aria-label="Previous year">‹</button>
+      <span class="year-label" id="year-label"></span>
+      <button type="button" class="btn btn-icon" id="year-next" aria-label="Next year">›</button>
+      <button type="button" class="btn btn-small" id="year-today" hidden>Back to this year</button>
+    </div>
+
     <div id="birthdays-view" role="tabpanel" aria-labelledby="tab-birthdays">
-      <section class="panel widget">
+      <section class="panel widget" id="bday-due-panel">
         <div class="widget-head">
           <h2>To sort</h2>
           <span class="muted">next 30 days</span>
@@ -41,8 +48,7 @@
 
       <section class="panel widget">
         <div class="widget-head">
-          <h2>Coming up</h2>
-          <span class="muted">the next 12 months</span>
+          <h2 id="bday-year-title">Birthdays</h2>
         </div>
         <ul id="bday-later" class="due-list"></ul>
         <p id="bday-later-empty" class="muted"></p>
@@ -68,11 +74,6 @@
       <section class="toolbar">
         <div class="toolbar-group">
           <input type="search" id="search" placeholder="Search people…" aria-label="Search people">
-          <div class="year-nav">
-            <button type="button" class="btn btn-icon" id="people-year-prev" aria-label="Previous year">‹</button>
-            <span class="year-label" id="people-year"></span>
-            <button type="button" class="btn btn-icon" id="people-year-next" aria-label="Next year">›</button>
-          </div>
         </div>
         <div class="toolbar-group">
           <button type="button" id="add-person-btn" class="btn btn-primary">+ Add person</button>
@@ -85,12 +86,7 @@
     <div id="spending-view" role="tabpanel" aria-labelledby="tab-spending" hidden>
       <section class="panel widget">
         <div class="widget-head">
-          <h2>Spending</h2>
-          <div class="year-nav">
-            <button type="button" class="btn btn-icon" id="spend-year-prev" aria-label="Previous year">‹</button>
-            <span class="year-label" id="spend-year"></span>
-            <button type="button" class="btn btn-icon" id="spend-year-next" aria-label="Next year">›</button>
-          </div>
+          <h2 id="spend-title">Spending</h2>
         </div>
         <div class="stats">
           <div class="stat"><span class="stat-value" id="spend-total">£0</span><span class="stat-label">Spent</span></div>
@@ -140,7 +136,7 @@
       <label class="check-label">
         <input type="checkbox" id="person-card" checked> I send them a card
       </label>
-      <label>Budget per present <span class="muted">(optional)</span>
+      <label>Budget per present in <span id="person-budget-year"></span> <span class="muted" id="person-budget-hint"></span>
         <input type="number" id="person-budget" min="0" step="any" inputmode="decimal" placeholder="e.g. 25">
       </label>
       <label>Notes <span class="muted">(sizes, likes, address…)</span>
@@ -202,6 +198,6 @@
     </form>
   </dialog>
 
-  <script src="app.js?v=3"></script>
+  <script src="app.js?v=4"></script>
 </body>
 </html>

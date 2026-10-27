@@ -12,13 +12,12 @@
   const CARD_TEXT = { yes: '✉️ Card: Yes', no: '✉️ Card: No' };
   const MONTHS = Array.from({ length: 12 }, (_, i) => new Date(2000, i, 1).toLocaleDateString(undefined, { month: 'long' }));
   const DUE_DAYS = { birthday: 30, christmas: 60 };   // how soon something counts as needing sorting
-  const YEAR_DAYS = 366;
 
   // ---------- State ----------
 
   let data = load();
-  let peopleYear = today().getFullYear();
-  let spendYear = today().getFullYear();
+  // The year every tab shows: this year when the app opens.
+  let shownYear = today().getFullYear();
 
   function valid(value) {
     return value && Array.isArray(value.people) && Array.isArray(value.gifts);
@@ -100,6 +99,25 @@
     return { person, occasion, date, year: date.getFullYear(), days, age };
   }
 
+  // A person's birthday or Christmas in a given year (past or future), or null.
+  function occasionIn(person, occasion, year) {
+    let date;
+    if (occasion === 'christmas') date = new Date(year, 11, 25);
+    else if (person.bday) date = dateInYear(year, person.bday.month, person.bday.day);
+    else return null;
+    const days = Math.round((date - today()) / 86400000);
+    const age = occasion === 'birthday' && person.bday.year ? year - person.bday.year : null;
+    return { person, occasion, date, year, days, age };
+  }
+
+  // Budgets are kept per year, and carry on to later years until changed. A budget saved
+  // before budgets were per year counts for every year.
+  function budgetFor(person, year) {
+    const years = Object.keys(person.budgets || {}).map(Number).filter((y) => y <= year);
+    if (!years.length) return person.budget || null;
+    return person.budgets[Math.max(...years)] || null;
+  }
+
   // Occasions coming up, soonest first. `limit` is a number of days, or one per occasion.
   function upcoming(limit, after = -1, only = null) {
     const list = [];
@@ -154,8 +172,11 @@
 
   function whenText(occ) {
     const date = occ.date.toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' });
-    const when = occ.days === 0 ? 'today' : occ.days === 1 ? 'tomorrow' : `in ${occ.days} days`;
-    return `${date} · ${when}${occ.age ? ` · turning ${occ.age}` : ''}`;
+    const d = occ.days;
+    const when = d === 0 ? 'today' : d === 1 ? 'tomorrow' : d === -1 ? 'yesterday'
+      : Math.abs(d) > 60 ? '' : d > 0 ? `in ${d} days` : `${-d} days ago`;
+    const age = occ.age ? (d < 0 ? `turned ${occ.age}` : `turning ${occ.age}`) : '';
+    return [date, when, age].filter(Boolean).join(' · ');
   }
 
   // What's been bought or sent (ideas don't count as spent yet).
@@ -170,20 +191,22 @@
     const list = giftsFor(occ.person.id, occ.occasion, occ.year);
     const state = occasionState(list);
     const done = occasionDone(occ);
-    const urgent = !done && occ.days <= 7;
+    const urgent = !done && occ.days >= 0 && occ.days <= 7;
+    const past = occ.days < 0;
+    const budget = budgetFor(occ.person, occ.year);
     const bought = list.filter((g) => g.status === 'bought');
     const what = list.length
       ? list.map((g) => `${GIFT_STATUS[g.status].icon} ${g.what}`).join(', ')
       : 'No present yet';
-    const label = done ? 'All sorted' : state === 'sent' ? 'Card not sent' : STATE_TEXT[state];
-    return el('li', { class: `due-row ${done ? 'done' : urgent ? 'urgent' : ''}` },
+    const label = done ? 'All sorted' : state === 'sent' ? 'Card not sent' : past && state === 'none' ? 'Nothing recorded' : STATE_TEXT[state];
+    return el('li', { class: `due-row ${done || past ? 'done' : urgent ? 'urgent' : ''}` },
       el('div', { class: 'due-info' },
         el('span', { class: 'due-name' }, `${OCCASIONS[occ.occasion].icon} ${occ.person.name}`),
         // Christmas has its own tab with the date at the top, so its rows don't repeat it.
         occ.occasion === 'birthday' ? el('span', { class: 'muted due-when' }, whenText(occ)) : null,
-        occ.person.budget ? el('span', { class: 'muted due-when' }, `Budget ${moneyText(occ.person.budget)}`) : null,
+        budget ? el('span', { class: 'muted due-when' }, `Budget ${moneyText(budget)}${spent(list) ? ` · spent ${moneyText(spent(list))}` : ''}`) : null,
         el('span', { class: 'due-what' }, what)),
-      el('span', { class: `badge ${done ? 'ok' : urgent || state === 'none' ? 'bad' : 'warn'}` }, label),
+      el('span', { class: `badge ${done ? 'ok' : past ? '' : urgent || state === 'none' ? 'bad' : 'warn'}` }, label),
       el('div', { class: 'due-actions' },
         // More presents can be added any time until everything's sent.
         state === 'sent'
@@ -209,6 +232,9 @@
   function renderBirthdays() {
     const soon = upcoming(DUE_DAYS.birthday, -1, 'birthday');
     const due = soon.filter((occ) => !occasionDone(occ));
+    // "To sort" is about now, so it shows with this year (and the count on the tab always does).
+    const isThisYear = shownYear === today().getFullYear();
+    $('#bday-due-panel').hidden = !isThisYear;
     $('#bday-due').replaceChildren(...due.map(dueRow));
     $('#bday-due-empty').hidden = due.length > 0;
     $('#bday-due-empty').textContent = data.people.some((p) => p.bday)
@@ -216,38 +242,47 @@
       : 'Add the people you buy presents for in People, with their birthdays, and they’ll show up here a month before.';
     setCount('#birthdays-count', due.length);
 
-    // Every other birthday in the next year, plus any soon ones that are already sorted.
-    const later = [...soon.filter(occasionDone), ...upcoming(YEAR_DAYS, DUE_DAYS.birthday, 'birthday')]
-      .sort((a, b) => a.days - b.days);
-    $('#bday-later').replaceChildren(...later.map(dueRow));
-    $('#bday-later-empty').hidden = later.length > 0;
-    $('#bday-later-empty').textContent = data.people.some((p) => p.bday) ? 'No other birthdays in the next 12 months.' : '';
+    // Every birthday in the year shown, January to December (leaving out ones already in To sort).
+    const inToSort = new Set(isThisYear ? due.filter((o) => o.year === shownYear).map((o) => o.person.id) : []);
+    const all = data.people.map((p) => occasionIn(p, 'birthday', shownYear))
+      .filter((occ) => occ && !inToSort.has(occ.person.id))
+      .sort((a, b) => a.date - b.date || a.person.name.localeCompare(b.person.name));
+    $('#bday-year-title').textContent = `Birthdays in ${shownYear}`;
+    $('#bday-later').replaceChildren(...all.map(dueRow));
+    $('#bday-later-empty').hidden = all.length > 0;
+    $('#bday-later-empty').textContent = data.people.some((p) => p.bday) ? `No other birthdays in ${shownYear}.` : '';
   }
 
   // ---------- Christmas ----------
 
   function renderChristmas() {
-    const all = upcoming(YEAR_DAYS, -1, 'christmas').sort((a, b) => a.person.name.localeCompare(b.person.name));
-    const date = all[0]?.date ?? nextOccasion({ christmas: true }, 'christmas').date;
-    const days = Math.round((date - today()) / 86400000);
-    $('#xmas-title').textContent = `Christmas ${date.getFullYear()}`;
-    $('#xmas-when').textContent = days === 0 ? 'today! 🎄' : days === 1 ? 'tomorrow' : `in ${days} days`;
+    // Everyone you buy for, plus anyone who had a Christmas present that year.
+    const all = data.people
+      .filter((p) => p.christmas !== false || giftsFor(p.id, 'christmas', shownYear).length)
+      .map((p) => occasionIn(p, 'christmas', shownYear))
+      .sort((a, b) => a.person.name.localeCompare(b.person.name));
+    const days = Math.round((new Date(shownYear, 11, 25) - today()) / 86400000);
+    $('#xmas-title').textContent = `Christmas ${shownYear}`;
+    $('#xmas-when').textContent = days === 0 ? 'today! 🎄' : days === 1 ? 'tomorrow' : days > 0 ? `in ${days} days` : '';
 
     const todo = all.filter((occ) => !occasionDone(occ));
     const done = all.filter(occasionDone);
     $('#xmas-todo').replaceChildren(...todo.map(dueRow));
     $('#xmas-done').replaceChildren(...done.map(dueRow));
     $('#xmas-todo-head').hidden = !todo.length;
+    $('#xmas-todo-head').textContent = days < 0 ? 'Not sorted' : 'Still to sort';
     $('#xmas-done-head').hidden = !done.length;
 
-    const yearGifts = data.gifts.filter((g) => g.occasion === 'christmas' && g.year === date.getFullYear());
-    const budget = all.reduce((sum, occ) => sum + (occ.person.budget || 0), 0);
+    const yearGifts = data.gifts.filter((g) => g.occasion === 'christmas' && g.year === shownYear);
+    const budget = all.reduce((sum, occ) => sum + (budgetFor(occ.person, shownYear) || 0), 0);
     $('#xmas-summary').hidden = !all.length;
     $('#xmas-summary').textContent = `${done.length} of ${all.length} sorted · ${moneyText(spent(yearGifts))} spent${budget ? ` of ${moneyText(budget)} budget` : ''}`;
     $('#xmas-empty').hidden = all.length > 0;
     $('#xmas-empty').textContent = 'No one to buy for yet. Add people in People and tick “I buy them a Christmas present”.';
-    // Only nag about Christmas once it's getting close.
-    setCount('#christmas-count', days <= DUE_DAYS.christmas ? todo.length : 0);
+    // The count on the tab is about the next Christmas, whichever year is shown, and only
+    // once it's getting close.
+    const nextTodo = upcoming(DUE_DAYS.christmas, -1, 'christmas').filter((occ) => !occasionDone(occ));
+    setCount('#christmas-count', nextTodo.length);
   }
 
   // ---------- People ----------
@@ -273,7 +308,7 @@
   }
 
   function personCard(person) {
-    const list = data.gifts.filter((g) => g.personId === person.id && g.year === peopleYear)
+    const list = data.gifts.filter((g) => g.personId === person.id && g.year === shownYear)
       .sort((a, b) => a.occasion.localeCompare(b.occasion) || a.what.localeCompare(b.what));
     const meta = [birthdayText(person)];
     if (person.christmas === false) meta.push('No Christmas present');
@@ -281,8 +316,9 @@
     const cardOccasions = wantsCard(person)
       ? Object.keys(OCCASIONS).filter((o) => (o === 'christmas' ? person.christmas !== false : !!person.bday))
       : [];
-    if (person.budget) meta.push(`Budget ${moneyText(person.budget)}`);
-    const over = Object.keys(OCCASIONS).filter((occ) => person.budget && spent(list.filter((g) => g.occasion === occ)) > person.budget);
+    const budget = budgetFor(person, shownYear);
+    if (budget) meta.push(`Budget ${moneyText(budget)}`);
+    const over = Object.keys(OCCASIONS).filter((occ) => budget && spent(list.filter((g) => g.occasion === occ)) > budget);
     const total = spent(list);
     return el('article', { class: 'card' },
       el('div', { class: 'card-head' },
@@ -293,16 +329,15 @@
         over.length ? el('span', { class: 'badge bad' }, `Over budget for ${over.map((o) => OCCASIONS[o].label).join(' and ')}`) : null),
       person.notes ? el('p', { class: 'muted card-meta card-notes' }, person.notes) : null,
       cardOccasions.length
-        ? el('p', { class: 'card-meta' }, cardOccasions.map((o) => cardButton(person.id, o, peopleYear, true)))
+        ? el('p', { class: 'card-meta' }, cardOccasions.map((o) => cardButton(person.id, o, shownYear, true)))
         : null,
       list.length
         ? el('ul', { class: 'gift-list' }, list.map(giftRow))
-        : el('p', { class: 'card-empty' }, `Nothing for ${peopleYear} yet.`),
+        : el('p', { class: 'card-empty' }, `Nothing for ${shownYear} yet.`),
       el('button', { type: 'button', class: 'btn btn-small card-add', onclick: () => openGiftDialog(null, person.id) }, '+ Present'));
   }
 
   function renderPeople() {
-    $('#people-year').textContent = String(peopleYear);
     const q = $('#search').value.trim().toLowerCase();
     const people = data.people.filter((p) => !q || p.name.toLowerCase().includes(q))
       .sort((a, b) => a.name.localeCompare(b.name));
@@ -313,8 +348,8 @@
   // ---------- Spending ----------
 
   function renderSpending() {
-    $('#spend-year').textContent = String(spendYear);
-    const yearGifts = data.gifts.filter((g) => g.year === spendYear);
+    $('#spend-title').textContent = `Spending in ${shownYear}`;
+    const yearGifts = data.gifts.filter((g) => g.year === shownYear);
     $('#spend-total').textContent = moneyText(spent(yearGifts));
     $('#spend-xmas').textContent = moneyText(spent(yearGifts.filter((g) => g.occasion === 'christmas')));
     $('#spend-bday').textContent = moneyText(spent(yearGifts.filter((g) => g.occasion === 'birthday')));
@@ -330,20 +365,23 @@
         el('td', {}, moneyText(spent(list.filter((g) => g.occasion === 'christmas')))),
         el('td', {}, moneyText(spent(list.filter((g) => g.occasion === 'birthday')))),
         el('td', {}, el('strong', {}, moneyText(spent(list))))))),
-    ] : [el('caption', { class: 'muted' }, `No presents bought for ${spendYear}.`)]));
+    ] : [el('caption', { class: 'muted' }, `No presents bought for ${shownYear}.`)]));
   }
 
   function render() {
+    const thisYear = today().getFullYear();
+    $('#year-label').textContent = String(shownYear);
+    $('#year-today').hidden = shownYear === thisYear;
+    $('#year-today').textContent = `Back to ${thisYear}`;
     renderBirthdays();
     renderChristmas();
     renderPeople();
     renderSpending();
   }
 
-  $('#people-year-prev').addEventListener('click', () => { peopleYear--; renderPeople(); });
-  $('#people-year-next').addEventListener('click', () => { peopleYear++; renderPeople(); });
-  $('#spend-year-prev').addEventListener('click', () => { spendYear--; renderSpending(); });
-  $('#spend-year-next').addEventListener('click', () => { spendYear++; renderSpending(); });
+  $('#year-prev').addEventListener('click', () => { shownYear--; render(); });
+  $('#year-next').addEventListener('click', () => { shownYear++; render(); });
+  $('#year-today').addEventListener('click', () => { shownYear = today().getFullYear(); render(); });
   $('#search').addEventListener('input', renderPeople);
   $('#add-person-btn').addEventListener('click', () => openPersonDialog(null));
 
@@ -377,7 +415,11 @@
     $('#person-year').value = person?.bday?.year ?? '';
     $('#person-christmas').checked = person ? person.christmas !== false : true;
     $('#person-card').checked = person ? wantsCard(person) : true;
-    $('#person-budget').value = person?.budget ?? '';
+    $('#person-budget-year').textContent = String(shownYear);
+    $('#person-budget-hint').textContent = shownYear < today().getFullYear()
+      ? `(optional – just for ${shownYear})`
+      : '(optional – carries on to later years until you change it)';
+    $('#person-budget').value = (person && budgetFor(person, shownYear)) ?? '';
     $('#person-notes').value = person?.notes ?? '';
     $('#person-delete').hidden = !person;
     personDialog.showModal();
@@ -393,18 +435,28 @@
       alert('Please give a day and month that exist, or leave both blank.');
       return;
     }
-    const budget = parseFloat($('#person-budget').value);
+    const budget = parseFloat($('#person-budget').value) > 0 ? parseFloat($('#person-budget').value) : null;
+    const id = $('#person-id').value;
+    const existing = id ? data.people.find((p) => p.id === id) : null;
+    // Save the budget against the year shown, only if it's changed for that year.
+    const budgets = { ...(existing?.budgets || {}) };
+    if (!existing || budget !== budgetFor(existing, shownYear)) {
+      // Changing a past year's budget leaves the years after it as they were.
+      if (existing && shownYear < today().getFullYear() && !(String(shownYear + 1) in budgets)) {
+        budgets[shownYear + 1] = budgetFor(existing, shownYear + 1) || 0;
+      }
+      budgets[shownYear] = budget || 0;
+    }
     const fields = {
       name: $('#person-name').value.trim(),
       bday: day && month ? { day, month, ...(year > 1900 ? { year } : {}) } : null,
       christmas: $('#person-christmas').checked,
       card: $('#person-card').checked,
-      budget: budget > 0 ? budget : null,
+      budgets,
       notes: $('#person-notes').value.trim(),
     };
     if (!fields.name) return;
-    const id = $('#person-id').value;
-    if (id) Object.assign(data.people.find((p) => p.id === id), fields);
+    if (existing) Object.assign(existing, fields);
     else data.people.push({ id: uid(), ...fields });
     save();
     render();
